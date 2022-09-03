@@ -1,0 +1,193 @@
+---
+title: 'STOR 455 Homework #8'
+subtitle: 25 points - Due 4/13 at 5:00pm
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+__Situation (again):__ Suppose that you are interested in purchasing a used car. How much should you expect to pay?  Obviously the price will depend on the type of car you get (the model) and how much it's been used. For this assignment you will investigate how the price might depend on the age, mileage, and the model of car. 
+
+__Data Source:__ Your sample of cars will again be taken from the UsedCar CSV file on Sakai. The data was acquired by scraping TrueCar.com for used car listings on 9/24/2017 and contains more than 1.2 million used cars. 
+
+For this assignment, you will need to select six new samples, each with _exactly_ 50 vehicles, for six different _Model_ of used vehicles for sale in North Carolina from the UsedCar dataset. There will likely be more than 50 of your selected models for sale in North Carolina, so you should randomly select those 50 vehicles from the larger number that are available. The six models of vehicles should be selected such that three models of vehicles are selected from Japanese companies, and another three from US companies (i.e. _Make_; It does not matter where the cars were actually manufactured). Within each country, you should select a compact car, a mid-sized car, and a SUV (Note that the country and types of vehicles are not given in the data and are for you to determine). You should add new variables to the dataframes for the country of the company and type of vehicle (compact vs mid-sized vs SUV) and combine these six samples into one dataframe (just as rbind was used in a previous assignment). When selecting these samples make sure to use set.seed(). This will select the same sample each time that you run (and knit) your code.The code below is an example of how you could select a random sample of 50 cars for a given model:
+```{r}
+library(readr)
+UsedCars <- read_csv("UsedCars.csv")
+
+StateOfMyChoice = "NC"
+MakeOfMyChoice1 = "Honda"
+MakeOfMyChoice2 = "Ford"
+
+NCUsedCars_Honda = subset(UsedCars, Make=="Honda" & State=="NC")
+NCUsedCars_Ford = subset(UsedCars, Make=="Ford" & State=="NC")
+
+NCUsedCars_Honda$Make[which(NCUsedCars_Honda$Make=='Honda')]<-'JP'
+NCUsedCars_Ford$Make[which(NCUsedCars_Ford$Make=='Ford')]<-'USA'
+
+```
+
+```{r}
+# Suppose that NCUsedCars_Honda is a subset of 
+# only Hondas sold in NC from the Usedcars dataset.
+library(dplyr)
+
+set.seed(8675309)
+FocusSE = sample_n(subset(NCUsedCars_Ford, Model=='FocusSE'), 50)
+FusionSE = sample_n(subset(NCUsedCars_Ford, Model=='FusionSE'), 50)
+EdgeSEL = sample_n(subset(NCUsedCars_Ford, Model=='EdgeSEL'), 50)
+
+Civic = sample_n(subset(NCUsedCars_Honda, Model=='Civic'), 50)
+Accord = sample_n(subset(NCUsedCars_Honda, Model=='Accord'), 50)
+Pilot4WD = sample_n(subset(NCUsedCars_Honda, Model=='Pilot4WD'),50)
+
+data= rbind(FocusSE,Civic,FusionSE,Accord,EdgeSEL,Pilot4WD)
+data$Model[which(data$Model=='FocusSE')]<-'cam'
+data$Model[which(data$Model=='Civic')]<-'cam'
+data$Model[which(data$Model=='FusionSE')]<-'mid'
+data$Model[which(data$Model=='Accord')]<-'mid'
+data$Model[which(data$Model=='EdgeSEL')]<-'suv'
+data$Model[which(data$Model=='Pilot4WD')]<-'suv'
+
+names(data)[8] = "Country"
+names(data)[9] = "Type"
+```
+
+#### One Way ANOVA ####    
+
+1.  Produce a set of side-by-side boxplots to compare the price distributions of your three types of vehicles (not the models). Comment on any obvious differences in the distributions. 
+Compared with cam and mid size, suv size has more variance and is much more spread out of price.
+```{r}
+boxplot(Price ~ Type, data = data)
+means = tapply(data$Price, data$Type, mean)
+points(means, col="red", pch=4)
+abline(h = mean(data$Price), col = "blue")
+```
+
+2.  Produce summary statistics (mean and standard deviation) for each of the groups (vehicle types) AND the entire sample of vehicle prices. 
+```{r}
+tapply(data$Price, data$Type, mean)
+tapply(data$Price, data$Type, sd)
+mean(data$Price)
+sd(data$Price)
+```
+
+3.  Based on just what you see in the boxplots and summary statistics comment on whether you think there are significant differences in the mean prices among your three vehicle types. Also comment on any concerns you see about the conditions for the ANOVA for means model. 
+I think there is a significant difference in the mean price among 3 types of cars. From seeing sd data we know that constant variance might be a issue because the one of suv is more than double two of the others.(8629>3757*2 8629>4031*2) 
+
+4.  Construct an ANOVA model for the mean price by vehicle type. Include the output showing the ANOVA table; state hypotheses, and provide a conclusion in the context of your data. 
+Ho: μ1=μ2=...=μK  Ha: Some μi≠μj
+another way to write it
+Ho: α1=α2=...=αK=0 Ha: Someαi≠0
+H0: There is no difference in means between Types of cars.
+Ha:there is at least one type of cars that the mean is different.
+Since P value is small, there is a significant difference in mean price between different types of cars. 
+```{r}
+PT=aov(Price~factor(Type),data=data)
+PT
+summary(PT)
+```
+
+5.  Produce plots and/or summary statistics to comment on the appropriateness of the following conditions for your data: normality of the residuals, and equality of the variances. If you find that the conditions are _not_ met, You can still continue with analysis of your data for this homework. We will soon discuss how to deal with violations of these conditions.
+equality: There is a little bit falling trend on the right side. 
+normality: There is a little bit questionable because both of the tails fall off the line.
+```{r}
+plot(PT, 1:2)
+```
+
+6.  If your ANOVA model indicates that there are significant differences among the vehicle type price means, discuss where the significant differences occur using Tukey HSD methods. If your ANOVA indicates there are not significant differences among the vehicle type price means, determine how different your means prices would need to be in order to find a significant difference using the Tukey HSD methods.
+From the graph and small P value we know that significant difference occur in each pair of them, especially in suv and the others.
+```{r}
+TukeyHSD(PT)
+hsd = TukeyHSD(PT)
+plot(hsd, las=2)
+```
+
+#### Two Way ANOVA ####
+
+7.  Construct an ANOVA model for the mean price using the country of the company and the type of vehicle as predictors (without an interaction). Include the output showing the ANOVA table; state hypotheses and provide a conclusion in the context of your data. If your ANOVA model indicates there are significant differences among the vehicle price means: Discuss where the significant differences occur using Tukey HSD methods.
+Ho: α1 = α2=...=αK=0 Ha:some αk≠0
+Ho: β1 = β2=...=βj=0 Ha:some βj≠0
+H0: There is no difference in means between Types of cars and There is no difference in means between countries.
+Ha:there is at least one different type or country where the mean is different.
+Since P value is small, we have 95% confidence to say that there is a significant difference in mean price between different subgroups(counties and types of cars).
+From the small P value we know that significant difference occur in each subgroups, especially in suv and the others.
+```{r}
+amod = aov(Price~factor(Type)+Country, data=data)
+summary(amod)
+TukeyHSD(amod)
+```
+
+8.	Produce plots and/or summary statistics to comment on the appropriateness of the following conditions for your data: normality of the residuals, and equality of the variances. 
+equality: There is a little bit falling trend on the right side. 
+normality: There is a little bit questionable because both of the tails fall off the line.
+```{r}
+plot(amod, 1:2)
+```
+
+9.  Construct an ANOVA model for the mean price using the country of the company and the type of vehicle as predictors with the interaction. Include the output showing the ANOVA table; state hypotheses and provide a conclusion in the context of your data. If your ANOVA indicates that there are significant differences among the car price means: Discuss where the significant differences occur using Tukey HSD methods.
+Ho: all αK=0 Ha:some αk≠0
+Ho: all βj=0 Ha:some βj≠0
+Ho: all γkj=0 Ha:some γkj≠0
+From P values (<2e-16,0.0413,0.3491), we have 95% confidence to say that there is main effects, but there is no intersection effects. Here we are using different criterias in these two test, TukeyHSD have some significant difference is because that it considers the Type one error and adjust the P values. It is also related with the sample size.
+```{r}
+modint = aov(Price ~Type+Country+ Type*Country, data=data)
+summary(modint)
+TukeyHSD(modint)
+```
+
+10. Produce two interaction plots for the previous model. If you found significant interactions in your hypothesis test, comment on how these interactions are shown in the plot. If you did not find significant interactions in your hypothesis test, comment on how the (lack of) interactions are shown in the plot.
+There is no significant intersections because the slope of these lines are similar, which means that there is similar change from going to JP to USA for any level of the size of cars, and there is similar change from going to cam to mid to suv for either given countries.
+```{r}
+interaction.plot(data$Country, data$Type, data$Price)
+interaction.plot(data$Type, data$Country, data$Price)
+```
+
+#### Additional Topics ####
+11. Recall that we can also handle a categorical predictor with multiple categories using ordinary multiple regression if we create indicator variables for each category and include all but one of the indicators in the model. Run an ordinary multiple regression to predict _Price_ using the country of the company, the type of vehicle, and the interaction between the two as predictors. Interpret each of the coefficients in the "dummy" regression by what they mean in the context of mean prices. 
+interpretation:
+the mean price of JP_com=13183.7
+the mean price of JP_mid=13183.7+2074.4=15258.1
+the mean price of JP_suv=13183.7+10113.0=23296.7
+the mean price of USA_com=13183.7-1623.8=11559.9
+the mean price of USA_mid=13183.7-1623.8+2074.4+1540.1=15174.4
+the mean price of USA_suv=13183.7-1623.8+10113.0-842.7=20830.2
+```{r}
+mod=lm(Price~factor(Country)+factor(Type)+factor(Country)*factor(Type),data=data)
+summary(mod)
+
+13183.7+2074.4
+13183.7+10113.0
+13183.7-1623.8
+13183.7-1623.8+2074.4+1540.1
+13183.7-1623.8+10113.0-842.7
+```
+
+12. One possible drawback of the analysis for this assignment is that different people might have chosen vehicles with quite different mileages when collecting their samples.  Thus an apparent "difference" between two countries or vehicle types might be due to one sample having considerably more higher mileage vehicles in it than another. Construct a model that allows you to check for mean price differences between your vehicles from the model constructed in question 11 after accounting for variability due to the mileage of the vehicles. Explain how you use the output from the model to address this question.
+From anova test and small p-values we have confidence to say that country, type, and the interaction between country and type have significant effects to the variability in Price.
+Since slopes of pink, green and black lines are similar, we know that the price variability in US_suv, JP_suv, JP_com can be explained by mileage similarly.
+Since slopes of yellow, red blue line is more smooth relatively, we know that as the mileage increases, the prices of US_mid, US_com, JP_mid drop more slowly.
+To sum up, since some subgroups have different slopes between price and mileage, part of the mean differences does affected by mileage.
+```{r}
+mod1=lm(Price~factor(Country)+factor(Type)+factor(Country)*factor(Type)+Mileage,data=data)
+anova(mod1)
+
+line1=lm(Price ~ Mileage, data=FocusSE)
+line2=lm(Price ~ Mileage, data=Civic)
+line3=lm(Price ~ Mileage, data=FusionSE)
+line4=lm(Price ~ Mileage, data=Accord)
+line5=lm(Price ~ Mileage, data=EdgeSEL)
+line6=lm(Price ~ Mileage, data=Pilot4WD)
+
+plot(Price ~ Mileage, data=data)
+abline(line1)
+abline(line2, col='red')
+abline(line3, col='blue')
+abline(line4, col='yellow')
+abline(line5, col='green')
+abline(line6, col='pink')
+
+```
+

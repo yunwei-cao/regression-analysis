@@ -1,0 +1,164 @@
+---
+title: "STOR 455 Homework 1 Turtles R Notebook"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+
+
+```{r warning = FALSE, message=FALSE}
+
+library(readr)
+library(Stat2Data)
+
+Turtles <- read_csv(
+  "https://raw.githubusercontent.com/JA-McLean/STOR455/master/data/Turtles.csv")
+```
+
+
+
+Question1&2:
+a least squares regression line & a scatterplot
+```{r}
+plot(Annuli~Mass, data=Turtles)
+Turtlesmod1 =lm(Annuli~Mass, data=Turtles)
+abline(Turtlesmod1)
+```
+
+
+
+Question3: 
+the residual for 40th row of the Turtles is 20.38223.
+the model predict for this turtle’s number of Annuli is 369.6178.
+```{r}
+Turtlesmod1$resid[40]
+390-Turtlesmod1$resid[40]
+```
+
+
+
+Q4: row185 has the largest positive residual. The value is 23.19151. 
+Q5: row93 has the most negative residual. The value is -10.42705.
+```{r}
+max(Turtlesmod1$residuals)
+which.max(Turtlesmod1$residuals)
+Turtles[185,]
+
+min(Turtlesmod1$residuals)
+which.min(Turtlesmod1$residuals)
+Turtles[93,]
+```
+
+
+
+Q6: Simple Linear Model-Conditions
+(1)Linearity: Not good. From the residuals vs Fitted plot, 
+   we can see that the data does not follow the horizontal line centered at 0,
+   and the red line shows another pattern.
+(2)Zero Mean: No problem. This is inherent using the least squares method.
+(3)Constant variance(Homoscedasticity): Not good. From the lm picture(Q2),
+   we know that there is a fanning pattern in most of the back place.
+(4)Independence:Uncertain. Turtles' annulis may not have internal influence. 
+   But we do not know the time and process of data collection.
+(5)Normality:not good nor bad. From the NormalQQ, data at both tail fly out,
+   althouth the sample size is not large enough(307 observations).
+```{r}
+par(mfrow=c(1,2))
+plot(Turtlesmod1,1:2)
+```
+
+
+
+Q7.1: Logarithmic linear transformation
+By comparing 4 log-linear plots, I think double-log is the best.
+Due to the piled up data is not clear, I made a subset for easy viewing.
+Overall the new model is better. 
+Linearity improves(residuals vs Fitted better).
+The constant variance improves(no fanning pattern).
+Normality improves(NormalQQ better).
+```{r}
+par(mfrow=c(2,2))
+
+plot(Annuli~Mass, data=Turtles)
+plot(log(Annuli)~Mass, data=Turtles)
+plot(Annuli~log(Mass), data=Turtles)
+plot(log(Annuli)~log(Mass), data=Turtles)
+
+par(mfrow=c(1,3))
+
+Turtle_above_200mass = subset(Turtles, Mass > 200)
+Turtlesmod2 =lm(log(Annuli)~log(Mass), data=Turtle_above_200mass)
+
+plot(log(Annuli)~log(Mass), Turtle_above_200mass)
+abline(Turtlesmod2)
+plot(Turtlesmod2,1:2)
+
+summary(Turtlesmod2)
+```
+
+
+
+Q7.2: Power function transformation
+Overall the new model is not good. 
+Linearity worse(residuals vs Fitted do not improve).
+The constant variance do not improve.
+Normality not good nor bad still.
+```{r}
+par(mfrow=c(1,3))
+
+Turtlesmod3=lm(Annuli~I(Mass^3), data=Turtles)
+
+plot(Annuli~I(Mass^3), data=Turtles)
+abline(Turtlesmod3)
+plot(Turtlesmod3,1:2)
+
+summary(Turtlesmod3)
+```
+
+
+
+Q8:the raw data with the double-log model
+```{r}
+B0 = summary(Turtlesmod2)$coefficients[1,1]
+B1 = summary(Turtlesmod2)$coefficients[2,1]
+
+plot(Annuli~Mass, data=Turtles)
+curve(exp(B0)*x^B1, add=TRUE)
+```
+
+
+
+Q9: 
+the residual for 40th row of the Turtles is 0.2101058.
+the model predict for this turtle’s number of Annuli is 389.7899.
+```{r}
+Turtlesmod2$resid[40]
+390-Turtlesmod2$resid[40]
+```
+
+
+
+Q10:new exploration
+the relationship between Mass and Annuli is probably positive correlation.
+The increasing speed of female turtles' annulis is faster than the males'.
+```{r}
+Turtles_adult =subset(Turtles,LifeStage=='Adult')
+Turtles_adult_male =subset(Turtles_adult,Sex=='Male')
+Turtles_adult_female =subset(Turtles_adult,Sex=='Female')
+
+Turtlesmod_male =lm(log(Annuli)~log(Mass), data=Turtles_adult_male)
+Turtlesmod_female =lm(log(Annuli)~log(Mass), data=Turtles_adult_female)
+
+B0 = summary(Turtlesmod_male)$coefficients[1,1]
+B1 = summary(Turtlesmod_male)$coefficients[2,1]
+B2 = summary(Turtlesmod_female)$coefficients[1,1]
+B3 = summary(Turtlesmod_female)$coefficients[2,1]
+
+plot(Annuli~Mass, data=Turtles_adult)
+curve(exp(B0)*x^B1, col='blue',add=TRUE)
+curve(exp(B2)*x^B3, col='red',add=TRUE)
+```
+
+
+
