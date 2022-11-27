@@ -1,0 +1,154 @@
+---
+title: 'Homework #3: Ames Housing Data'
+subtitle: 40 points - Due 2/21 at 5:00pm
+output:
+  html_notebook: 
+    toc: yes
+    toc_float: yes
+    highlight: espresso
+    theme: readable
+---
+
+_Situation_: Can we predict the selling price of a house in Ames, Iowa based on recorded features of the
+house? That is your task for this assignment. Each group will have a dataset with information on forty
+potential predictors and the selling price (in $1,000’s) for a sample of homes. The data set for your group
+is in AmesTrain??.csv (where ?? corresponds to your group number) and can be found in the AmesTrain
+zipped file under class 14 in Sakai. A separate file identifies the variables in the Ames Housing data and
+explains some of the coding.
+
+_Directions_: You will be assigned to a group of three to four students for this assignment. Parts 1, 2, &
+5 should be turned in individually to Gradescope by each student in your group. Parts 3 & 4 should be
+submitted as a group to Gradescope. There are separate places to submit the individual and group portions
+of the assignment.
+
+```{r results='hide'}
+library(readr)
+library(car)
+library(carData)
+library(corrplot) 
+library(leaps) 
+
+AmesTrain15 <- read_csv('AmesTrain15.csv')
+
+source("https://raw.githubusercontent.com/JA-McLean/STOR455/master/scripts/ShowSubsets.R")
+```
+
+# Part 1. Build an initial "basic" model
+mod1: the linear relationship is overall good.
+The P value of some predictors are large, which are not good for being predictors or because of multicollinearity.
+The VIF of some variables are lager than 5.
+```{r}
+library(dplyr)
+#remove the categorical variables
+newdata=select_if(AmesTrain15,is.numeric)
+#remove the Order variable and predictors that are exactly related
+newdata1=subset(newdata,select =-c(Order,BasementSF,GroundSF))
+
+mod1 = lm(Price~., data=newdata1)
+plot(mod1)
+summary(mod1)
+vif(mod1)
+```
+
+## backward method
+```{r}
+MSE = (summary(mod1)$sigma)^2
+backward_mod = step(mod1, scale=MSE,trace=FALSE)
+summary(backward_mod)
+```
+## stepwise method
+Both of the backward and stepwise methods have the same adjusted R square.
+Compared with mod1, the model improves from 0.8588 to 0.8595.
+The predictor of 'Bedroom' and 'Fireplaces' have p values greater than 0.05, which are not significant at a 5% level.
+There is no multicollinearity, all VIF is smaller than 5.
+I choose it as my basic model.
+```{r}
+none = lm(Price~1, data=newdata1)
+stepwise_mod = step(none, scope=list(upper=mod1), scale=MSE,trace=FALSE)
+summary(stepwise_mod)
+vif(stepwise_mod)
+```
+# Part 2: Residual analysis
+Linearity is ok, since the residuals vs fitted plot is described by a horizontal line.\
+qq plot: a little bit of a compacted on both sides of this because the ends points go down below the line a little bit.\
+But overall, it is good without clearly huge skews.
+The 12 houses indexes listed are outliers, they have studentized residuals larger than 3 or or smaller than -3.\
+All cook's distance are smaller than 0.5, so there is no data points have a drastic effect on the whole model.
+Overall, the result of residual analysis is good.\
+I made an adjustment based on P value above, which deletes the predictor of 'Bedroom' and 'Fireplaces', the adjusted R is smaller, which is 0.8582.
+```{r}
+plot(stepwise_mod)
+head(sort(abs(rstudent(stepwise_mod)), decreasing=TRUE), 15)
+head(sort(cooks.distance(stepwise_mod), decreasing=TRUE), n=5)
+
+adjustmod = lm(formula = Price ~ Quality + FirstSF + SecondSF + YearBuilt + 
+    BasementFinSF + GarageSF + LotArea + YearRemodel + Condition + 
+    ScreenPorchSF + LotFrontage + BasementUnFinSF + EnclosedPorchSF, data = newdata1)
+summary(adjustmod)
+```
+
+# Part 3 & 4: Group work
+# Part 5: Final model
+(The fancier final model is put in group work.) A 95% prediction interval for the Price of this house is (228.7178, 348.0183).
+```{r}
+newHouse=data.frame(LotFrontage=400,
+LotArea=21540,
+Quality=7,
+Condition=5,
+YearBuilt=1983,
+YearRemodel=1999,
+BasementUnFinSF=757,
+BasementFinSF=0,
+BasementSF=757,
+FirstSF=1485,
+SecondSF=947,
+BasementFBath=0,
+Bedroom=4,
+Fireplaces=1,
+GarageCars=2,
+GarageSF=588,
+EnclosedPorchSF=0,
+ScreenPorchSF=0)
+
+predict.lm(stepwise_mod, newHouse, interval="prediction")
+```
+
+3.2 class 22 cross validation
+```{r}
+set.seed(12345)
+rows <- sample(nrow(newdata1))
+Price_shuffled = newdata1[rows,]
+
+PriceTrain=Price_shuffled[1:480,]      
+PriceHoldout=Price_shuffled[481:600,]   
+```
+
+```{r}
+fitprice=predict(stepwise_mod,newdata=PriceHoldout)
+fitprice
+holdoutresid=PriceHoldout$Price - fitprice
+holdoutresid
+```
+
+1.in hold out set the mean is 2.001697,which is close to zero since the price is thousands of dollars.\
+2.the std is also close.\
+3.the normality is similar. Both of the tails in hold out sample and the training sample are fall from the line.
+```{r}
+mean(holdoutresid)
+mean(stepwise_mod$resid)
+
+sd(holdoutresid)
+summary(stepwise_mod)$sigma
+
+qqnorm(holdoutresid)
+qqline(holdoutresid)
+plot(stepwise_mod,2)
+```
+
+```{r}
+crosscorr=cor(PriceHoldout$Price,fitprice)
+crosscorr
+crosscorr=cor(PriceHoldout$Price,fitprice)^2
+shrinkage = summary(stepwise_mod)$r.squared-crosscorr^2
+shrinkage
+```
